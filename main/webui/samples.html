@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PX-Patch-V1 UI samples</title>
+    <link rel="stylesheet" href="styles.css?v=patch15">
+</head>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <header class="topbar wrap">
+        <div class="brand">
+            <img src="assets/logo.png" alt="Logo" class="brand-logo" loading="lazy" decoding="async" onerror="this.style.display='none'">
+            <div>
+                <p class="kicker">Paradox Prop Console</p>
+                <h1>Patch UI samples</h1>
+            </div>
+        </div>
+        <nav class="tabs">
+            <a class="tab" href="index.html">Live</a>
+            <a class="tab" href="config.html">Config</a>
+            <a class="tab" href="monitor.html">Monitor</a>
+            <a class="tab" href="connection.html">Connect</a>
+            <a class="tab active" href="samples.html">Samples</a>
+        </nav>
+    </header>
+
+    <main class="wrap layout single">
+        <section class="panel wide">
+            <div class="panel-head">
+                <h2>Dummy-data scenarios</h2>
+            </div>
+            <p class="hint">Same Live / Monitor pages with canned chains. Not shipped in the final device image. Target overlay on Live is display-only.</p>
+            <div class="scenario-grid">
+                <a class="scenario-card" href="index.html?scenario=nominal">
+                    <h3>Nominal</h3>
+                    <p>Mode B overlay. Two matching cables (green), one wrong (red), one missing.</p>
+                </a>
+                <a class="scenario-card" href="index.html?scenario=empty">
+                    <h3>Empty</h3>
+                    <p>No cables. Dashed amber targets still show if overlay is on.</p>
+                </a>
+                <a class="scenario-card" href="index.html?scenario=partial">
+                    <h3>Partial</h3>
+                    <p>Three of four B pairs in, plus a stray jumper.</p>
+                </a>
+                <a class="scenario-card" href="index.html?scenario=solved-b">
+                    <h3>Solved B</h3>
+                    <p>1D,23,56,7A — all current segments green.</p>
+                </a>
+                <a class="scenario-card" href="index.html?scenario=solved-a">
+                    <h3>Solved A</h3>
+                    <p>09,28,3E,4C. Switch overlay to A on Live to see greens.</p>
+                </a>
+                <a class="scenario-card" href="index.html?scenario=daisy">
+                    <h3>Daisy 3+</h3>
+                    <p>One three-port chain plus pairs. Segments L→R / T→B with droop and sway.</p>
+                </a>
+                <a class="scenario-card" href="index.html?scenario=tiles-missing">
+                    <h3>Tiles missing</h3>
+                    <p>AllTilesPresent false. Chains still drawn.</p>
+                </a>
+                <a class="scenario-card" href="index.html?scenario=fans-on">
+                    <h3>Fans on</h3>
+                    <p>Relay HIGH. Solved B layout.</p>
+                </a>
+                <a class="scenario-card" href="monitor.html?scenario=nominal">
+                    <h3>Monitor</h3>
+                    <p>Port strip + MCP addr 0.</p>
+                </a>
+                <a class="scenario-card" href="config.html">
+                    <h3>Config</h3>
+                    <p>Scan timing, 8 target-chain overlays, and jack map (24 holes → 16 ports).</p>
+                </a>
+            </div>
+        </section>
+    </main>
+</body>
+</html>

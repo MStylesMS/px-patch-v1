@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PX-Patch-V1 Monitor</title>
+    <link rel="stylesheet" href="styles.css?v=patch15">
+</head>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <header class="topbar wrap">
+        <div class="brand">
+            <img src="assets/logo.png" alt="Logo" class="brand-logo" loading="lazy" decoding="async" onerror="this.style.display='none'">
+            <div>
+                <p class="kicker">Paradox Prop Console</p>
+                <h1>Monitor</h1>
+            </div>
+        </div>
+        <nav class="tabs">
+            <a class="tab" href="index.html">Live</a>
+            <a class="tab" href="config.html">Config</a>
+            <a class="tab active" href="monitor.html">Monitor</a>
+            <a class="tab" href="connection.html">Connect</a>
+            <div class="status-icons" id="statusIcons"></div>
+        </nav>
+    </header>
+
+    <main class="wrap layout single">
+        <section class="panel wide">
+            <div class="panel-head">
+                <h2>Ports 0–F</h2>
+                <div class="mode-row">
+                    <span class="badge" id="monitorScenario">demo</span>
+                    <button id="refreshMonitor" class="btn btn-ghost">Refresh</button>
+                </div>
+            </div>
+            <p class="hint">Drive pin i LOW, read j &gt; i. LOW = continuity. Tile GPIO 18 is inverted (LOW = all present).</p>
+            <div class="port-strip" id="portStrip"></div>
+            <div class="channel-table-wrap" style="margin-top:0.8rem;">
+                <table class="channel-table" id="portTable">
+                    <thead>
+                        <tr>
+                            <th>Port</th>
+                            <th>Tile</th>
+                            <th>Corner</th>
+                            <th>Chain</th>
+                            <th>Lvl</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="panel wide">
+            <div class="panel-head">
+                <h2>Chains / tiles / fans</h2>
+            </div>
+            <div class="detail-grid" id="monitorFacts"></div>
+            <p class="hint" style="margin-top:0.7rem;">Pairwise CF string vs unique 3+ encoding (archive comma bug).</p>
+            <pre id="chainDump" class="log"></pre>
+        </section>
+
+        <section class="panel wide">
+            <div class="panel-head">
+                <h2>MCP23S17 addr 0</h2>
+            </div>
+            <p class="hint">HSPI 12/13/14/15. Library pins 1–16 = logical 0–15. Fan GPIO 23, tile GPIO 18.</p>
+            <div class="mcp-grid" id="mcpGrid"></div>
+        </section>
+
+        <pre id="monitorLog" class="log hidden"></pre>
+    </main>
+
+    <script src="app.js?v=patch15"></script>
+    <script>
+        (function boot(attempt) {
+            if (window.PX && typeof window.PX.pageMonitor === "function") {
+                window.PX.pageMonitor();
+                return;
+            }
+            if (attempt >= 6) return;
+            var s = document.createElement("script");
+            s.src = "app.js?r=" + Date.now() + "-" + attempt;
+            s.onload = function () { boot(attempt + 1); };
+            s.onerror = function () { setTimeout(function () { boot(attempt + 1); }, 200 * (attempt + 1)); };
+            document.head.appendChild(s);
+        })(0);
+    </script>
+</body>
+</html>

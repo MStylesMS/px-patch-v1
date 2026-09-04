@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PX-Patch-V1 Config</title>
+    <link rel="stylesheet" href="styles.css?v=patch15">
+</head>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <header class="topbar wrap">
+        <div class="brand">
+            <img src="assets/logo.png" alt="Logo" class="brand-logo" loading="lazy" decoding="async" onerror="this.style.display='none'">
+            <div>
+                <p class="kicker">Paradox Prop Console</p>
+                <h1>Configuration</h1>
+            </div>
+        </div>
+        <nav class="tabs">
+            <a class="tab" href="index.html">Live</a>
+            <a class="tab active" href="config.html">Config</a>
+            <a class="tab" href="monitor.html">Monitor</a>
+            <a class="tab" href="connection.html">Connect</a>
+            <div class="status-icons" id="statusIcons"></div>
+        </nav>
+    </header>
+
+    <main class="wrap layout single">
+        <section class="panel wide">
+            <div class="panel-head">
+                <h2>Runtime Config</h2>
+                <div class="row-actions">
+                    <button id="applyConfig" class="btn">Apply</button>
+                    <button id="saveConfig" class="btn btn-warn">Apply + Save</button>
+                    <button id="restoreDefaults" class="btn btn-ghost">Restore Defaults</button>
+                </div>
+            </div>
+            <form id="configForm" class="form-grid">
+                <label>Scan period (ms)
+                    <input name="scanPeriodMs" type="number" min="20" step="10">
+                </label>
+                <label>Debounce count
+                    <input name="debounceCount" type="number" min="1" max="20">
+                </label>
+                <label>Settle (ms)
+                    <input name="settleMs" type="number" min="1" step="1">
+                </label>
+                <label>Heartbeat (ms)
+                    <input name="heartbeatInterval" type="number" min="100" step="100">
+                </label>
+                <label class="toggle-field">Debug telemetry on Monitor
+                    <span class="toggle-row">
+                        <input name="debug" type="checkbox">
+                        <span>Show extra dumps (HTTP only)</span>
+                    </span>
+                </label>
+            </form>
+            <p class="hint">I/O only — the prop does not match these strings. Scan defaults: 110 ms, debounce 3, settle 5 ms.</p>
+            <h3 class="subhead">Target chain sets</h3>
+            <p class="hint">Up to 8 named overlays for the Live graphic. Seeded with Crafty Fox A/B. Leave a chains field blank to hide that set from the Live dropdown. Apply + Save stores them on the device.</p>
+            <div class="target-sets" id="targetSets"></div>
+            <h3 class="subhead">Jack map</h3>
+            <p class="hint">Each silver tile has four holes (TL, BL, TR, BR). Assign MCP ports 0–F or Skip. Firmware scans ports in numeric order; this table is display-only until confirmed on the bench.</p>
+            <div class="jack-map" id="jackMap"></div>
+            <pre id="configLog" class="log"></pre>
+        </section>
+
+        <section class="panel wide">
+            <div class="panel-head">
+                <h2>Raw JSON Command</h2>
+                <button id="sendRaw" class="btn">Send</button>
+            </div>
+            <textarea id="rawCommand" rows="4">{"Command":"reportState"}</textarea>
+            <p class="hint">POST /api/command — accepts Command or command. fansOn / fansOff / reportState.</p>
+            <pre id="rawLog" class="log"></pre>
+        </section>
+    </main>
+
+    <script src="app.js?v=patch15"></script>
+    <script>
+        (function boot(attempt) {
+            if (window.PX && typeof window.PX.pageConfig === "function") {
+                window.PX.pageConfig();
+                return;
+            }
+            if (attempt >= 6) {
+                var log = document.getElementById("configLog");
+                if (log) log.textContent = "Failed to load app.js after retries. Hard-refresh the page.";
+                return;
+            }
+            var s = document.createElement("script");
+            s.src = "app.js?r=" + Date.now() + "-" + attempt;
+            s.onload = function () { boot(attempt + 1); };
+            s.onerror = function () { setTimeout(function () { boot(attempt + 1); }, 200 * (attempt + 1)); };
+            document.head.appendChild(s);
+        })(0);
+    </script>
+</body>
+</html>

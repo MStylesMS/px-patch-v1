@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PX-Patch-V1 Console</title>
+    <link rel="stylesheet" href="styles.css?v=patch15">
+</head>
+<body>
+    <div class="bg-grid" aria-hidden="true"></div>
+    <header class="topbar wrap">
+        <div class="brand">
+            <img src="assets/logo.png" alt="Logo" class="brand-logo" loading="lazy" decoding="async" onerror="this.style.display='none'">
+            <div>
+                <p class="kicker">Paradox Prop Console</p>
+                <h1>PX-Patch-V1 Live</h1>
+            </div>
+        </div>
+        <nav class="tabs">
+            <a class="tab active" href="index.html">Live</a>
+            <a class="tab" href="config.html">Config</a>
+            <a class="tab" href="monitor.html">Monitor</a>
+            <a class="tab" href="connection.html">Connect</a>
+            <div class="status-icons" id="statusIcons"></div>
+        </nav>
+    </header>
+
+    <main class="wrap layout live-layout">
+        <section class="panel pulse" id="gameStatePanel">
+            <div class="panel-head">
+                <h2>Patch Panel</h2>
+                <div class="mode-row">
+                    <span id="stateBadge" class="badge">loading</span>
+                    <label class="overlay-label">Target
+                        <select id="targetOverlay">
+                            <option value="off">Off</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+            <p class="hint" id="mapHint">2×3 tiles, TL/BL/TR/BR jacks. Overlay sets come from Config (display only — the prop does not solve). Remap ports on Config if a hole is wrong.</p>
+            <div class="patch-legend" aria-hidden="true">
+                <span><i class="lg lg-target"></i> Target</span>
+                <span><i class="lg lg-bad"></i> Current</span>
+                <span><i class="lg lg-ok"></i> Matching</span>
+            </div>
+            <div class="patch-board" id="patchBoard" aria-label="Ventilation patch panel"></div>
+            <p class="solution-line" id="chainLine"></p>
+        </section>
+
+        <section class="panel">
+            <div class="panel-head">
+                <h2>Quick Actions</h2>
+                <button id="refreshBtn" class="btn btn-ghost">Refresh</button>
+            </div>
+            <div class="status-pills" id="statusPills"></div>
+            <div class="btn-grid">
+                <button class="btn btn-start" data-cmd='{"Command":"fansOn"}'>Fans On</button>
+                <button class="btn btn-pause" data-cmd='{"Command":"fansOff"}'>Fans Off</button>
+                <button class="btn" data-cmd='{"command":"reportState"}'>Report State</button>
+            </div>
+            <p class="hint">Legacy Prop MQTT. Solve / A-B matching stay in control.js — not on this prop. Report State sends lowercase <code>command</code> like live Node.</p>
+            <pre id="actionLog" class="log"></pre>
+        </section>
+    </main>
+
+    <script src="app.js?v=patch15"></script>
+    <script>
+        (function boot(attempt) {
+            if (window.PX && typeof window.PX.pageDashboard === "function") {
+                window.PX.pageDashboard();
+                return;
+            }
+            if (attempt >= 6) {
+                var log = document.getElementById("actionLog");
+                if (log) log.textContent = "Failed to load app.js after retries. Hard-refresh the page.";
+                return;
+            }
+            var s = document.createElement("script");
+            s.src = "app.js?r=" + Date.now() + "-" + attempt;
+            s.onload = function () { boot(attempt + 1); };
+            s.onerror = function () { setTimeout(function () { boot(attempt + 1); }, 200 * (attempt + 1)); };
+            document.head.appendChild(s);
+        })(0);
+    </script>
+</body>
+</html>
