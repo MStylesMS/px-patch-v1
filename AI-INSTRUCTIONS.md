@@ -18,6 +18,7 @@ target-chain strings for the Live overlay; do **not** match or solve on the ESP.
   `.\scripts\ota_upload.ps1 -HostAddress 192.168.8.52` (new),
   `.\scripts\ota_upload.ps1 -HostAddress 192.168.8.52 -Legacy` (old patch32 `POST /ota`).
 - SoftAP SSID form: `Paradox-PXPatchV1-XXXX`.
+- Default mDNS hostname: **`patch.local`** (`networkName`; change via Connect or `POST /api/device/name`).
 - **I/O only.** Do not put A/B solutions on the ESP.
 
 Local UI preview without flash:

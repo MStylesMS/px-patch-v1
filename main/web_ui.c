@@ -463,7 +463,7 @@ static void sanitize_network_name(const char *src, char *out, size_t out_size)
     }
 
     if (w == 0) {
-        strncpy(out, "px-fuse-v1", out_size - 1);
+        strncpy(out, "patch", out_size - 1);
         out[out_size - 1] = '\0';
         return;
     }
@@ -484,13 +484,8 @@ static void build_default_identity(void)
         return;
     }
     if (s_conn_cfg.network_name[0] == '\0') {
-        char network_id[32];
-        if (esp_read_mac(mac, ESP_MAC_WIFI_STA) == ESP_OK) {
-            snprintf(network_id, sizeof(network_id), "px-fuse-v1-%02x%02x", mac[4], mac[5]);
-        } else {
-            copy_bounded_local(network_id, sizeof(network_id), "px-fuse-v1");
-        }
-        snprintf(s_conn_cfg.network_name, sizeof(s_conn_cfg.network_name), "%s", network_id);
+        /* Short venue mDNS: patch.local (not MAC-suffixed). */
+        snprintf(s_conn_cfg.network_name, sizeof(s_conn_cfg.network_name), "patch");
     }
     conn_cfg_unlock();
 }

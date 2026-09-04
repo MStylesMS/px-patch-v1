@@ -643,7 +643,7 @@
                 mqttWarningsTopic: "/Paradox/TFD/Patch/Prop/warnings",
                 mqttGameStateTopic: "paradox/tfd/state",
                 mqttPropAnnounceTopic: "/Paradox/Props",
-                networkName: "px-patch-v1-a1b2",
+                networkName: "patch",
                 apSsid: "Paradox-PXPatchV1-A1B2",
                 apIpAddress: "192.168.4.1",
                 apPassword: "",
