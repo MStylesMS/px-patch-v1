@@ -1,7 +1,7 @@
 (function () {
     const KEY_BASE = "px.api.base";
     const KEY_DEMO = "px.demo.mode";
-    const KEY_CFG = "px.patch.demo.config.v2";
+    const KEY_CFG = "px.patch.demo.config.v4";
     const KEY_OVERLAY = "px.patch.overlay";
 
     const SOLUTIONS = {
@@ -46,35 +46,165 @@
 
     const CORNERS = ["tl", "bl", "tr", "br"];
     const CORNER_LABEL = { tl: "TL", bl: "BL", tr: "TR", br: "BR" };
+    const PORT_COUNT = 16;
+    const GRID_MAX = 16;
+    const DRAW_ROWS = 4;
+    const DRAW_COLS = 6;
 
-    function defaultJackMap() {
-        const skip = {
-            "0,0,br": true,
-            "0,1,br": true,
-            "0,2,br": true,
-            "1,0,br": true,
-            "1,1,bl": true,
-            "1,1,br": true,
-            "1,2,bl": true,
-            "1,2,br": true
-        };
+    /* Crafty Fox 2023 panel (Drive screenshot). #00 = R1C1, etc. */
+    const DEFAULT_JACKS = [
+        { port: 0, row: 1, col: 1 },
+        { port: 1, row: 3, col: 3 },
+        { port: 2, row: 3, col: 1 },
+        { port: 3, row: 2, col: 3 },
+        { port: 4, row: 4, col: 1 },
+        { port: 5, row: 1, col: 3 },
+        { port: 6, row: 2, col: 2 },
+        { port: 7, row: 4, col: 2 },
+        { port: 8, row: 2, col: 5 },
+        { port: 9, row: 3, col: 5 },
+        { port: 10, row: 2, col: 4 },
+        { port: 11, row: 1, col: 6 },
+        { port: 12, row: 1, col: 4 },
+        { port: 13, row: 4, col: 5 },
+        { port: 14, row: 4, col: 3 },
+        { port: 15, row: 3, col: 6 }
+    ];
+
+    function clampGrid(n, fallback) {
+        const v = Number(n);
+        if (!Number.isInteger(v)) {
+            return fallback;
+        }
+        return Math.max(1, Math.min(GRID_MAX, v));
+    }
+
+    function emptyJacks() {
+        return Array.from({ length: PORT_COUNT }, (_, port) => ({ port: port, row: 0, col: 0 }));
+    }
+
+    function defaultJacks() {
+        const out = emptyJacks();
+        DEFAULT_JACKS.forEach((j) => {
+            out[j.port] = { port: j.port, row: j.row, col: j.col };
+        });
+        return out;
+    }
+
+    function parseRcToken(value) {
+        const m = String(value == null ? "" : value).trim().toUpperCase().match(/^R(\d+)C(\d+)$/);
+        if (!m) {
+            return null;
+        }
+        return { row: Number(m[1]), col: Number(m[2]) };
+    }
+
+    function formatRc(row, col) {
+        if (!row || !col) {
+            return "";
+        }
+        return "R" + row + "C" + col;
+    }
+
+    function nodeRC(slot) {
+        const nodeRow = slot.row * 2 + ((slot.corner === "bl" || slot.corner === "br") ? 2 : 1);
+        const nodeCol = slot.col * 2 + ((slot.corner === "tr" || slot.corner === "br") ? 2 : 1);
+        return { r: nodeRow, c: nodeCol };
+    }
+
+    function emptyDrawSlots() {
         const slots = [];
-        let port = 0;
         for (let row = 0; row < 2; row++) {
             for (let col = 0; col < 3; col++) {
                 CORNERS.forEach((corner) => {
-                    const key = row + "," + col + "," + corner;
-                    const live = !skip[key] && port < 16;
                     slots.push({
                         row: row,
                         col: col,
                         corner: corner,
-                        port: live ? port++ : null
+                        socket: false,
+                        port: null
                     });
                 });
             }
         }
         return slots;
+    }
+
+    function drawingSlotsFromJacks(jacks) {
+        const slots = emptyDrawSlots();
+        (jacks || []).forEach((j) => {
+            if (!j || j.port == null || !j.row || !j.col) {
+                return;
+            }
+            if (j.row < 1 || j.row > DRAW_ROWS || j.col < 1 || j.col > DRAW_COLS) {
+                return;
+            }
+            const slot = slots.find((s) => {
+                const n = nodeRC(s);
+                return n.r === j.row && n.c === j.col;
+            });
+            if (slot) {
+                slot.socket = true;
+                slot.port = j.port;
+            }
+        });
+        return slots;
+    }
+
+    function normalizeJacks(raw, gridRows, gridCols) {
+        const rows = clampGrid(gridRows, 4);
+        const cols = clampGrid(gridCols, 6);
+        const out = emptyJacks();
+        if (!Array.isArray(raw)) {
+            return defaultJacks();
+        }
+        raw.forEach((item, idx) => {
+            if (!item) {
+                return;
+            }
+            let port;
+            let row = 0;
+            let col = 0;
+            if (item.corner) {
+                port = item.port;
+                if (port != null && port !== "") {
+                    const n = nodeRC(item);
+                    row = n.r;
+                    col = n.c;
+                }
+            } else if (typeof item === "string") {
+                port = idx;
+                const rc = parseRcToken(item);
+                if (rc) {
+                    row = rc.row;
+                    col = rc.col;
+                }
+            } else {
+                port = item.port != null ? item.port : idx;
+                row = Number(item.row) || 0;
+                col = Number(item.col) || 0;
+            }
+            port = Number(port);
+            if (!Number.isInteger(port) || port < 0 || port >= PORT_COUNT) {
+                return;
+            }
+            if (row < 1 || row > rows || col < 1 || col > cols) {
+                out[port] = { port: port, row: 0, col: 0 };
+                return;
+            }
+            out.forEach((j) => {
+                if (j.port !== port && j.row === row && j.col === col) {
+                    j.row = 0;
+                    j.col = 0;
+                }
+            });
+            out[port] = { port: port, row: row, col: col };
+        });
+        return out;
+    }
+
+    function assignedJacks(jacks) {
+        return (jacks || []).filter((j) => j && j.row > 0 && j.col > 0);
     }
 
     const DEFAULT_CONFIG = {
@@ -83,7 +213,10 @@
         settleMs: 5,
         heartbeatInterval: 10000,
         debug: true,
-        jackMap: defaultJackMap(),
+        gridRows: 4,
+        gridCols: 6,
+        jacks: defaultJacks(),
+        jackMap: drawingSlotsFromJacks(defaultJacks()),
         targetSets: defaultTargetSets()
     };
 
@@ -168,22 +301,17 @@
         }
     }
 
-    function mergeJackMap(saved) {
-        const base = defaultJackMap();
-        if (!Array.isArray(saved)) {
-            return base;
-        }
-        return base.map((slot) => {
-            const hit = saved.find((s) => s && s.row === slot.row && s.col === slot.col && s.corner === slot.corner) || {};
-            const port = hit.port;
-            const n = port === "" || port === null || port === undefined ? null : Number(port);
-            return {
-                row: slot.row,
-                col: slot.col,
-                corner: slot.corner,
-                port: n === null || Number.isNaN(n) || n < 0 || n > 15 ? null : n
-            };
-        });
+    function applyJackConfig(cfg, rawJacks) {
+        const rows = clampGrid(cfg && cfg.gridRows, 4);
+        const cols = clampGrid(cfg && cfg.gridCols, 6);
+        const source = rawJacks != null ? rawJacks : (cfg && (cfg.jacks || cfg.jackMap));
+        const jacks = Array.isArray(source) ? normalizeJacks(source, rows, cols) : defaultJacks();
+        return {
+            gridRows: rows,
+            gridCols: cols,
+            jacks: jacks,
+            jackMap: drawingSlotsFromJacks(jacks)
+        };
     }
 
     function loadDemoConfig() {
@@ -193,28 +321,77 @@
         } catch {
             raw = {};
         }
+        const jacks = applyJackConfig(raw);
         return {
             scanPeriodMs: Number(raw.scanPeriodMs) || DEFAULT_CONFIG.scanPeriodMs,
             debounceCount: Number(raw.debounceCount) || DEFAULT_CONFIG.debounceCount,
             settleMs: Number(raw.settleMs) || DEFAULT_CONFIG.settleMs,
             heartbeatInterval: Number(raw.heartbeatInterval) || DEFAULT_CONFIG.heartbeatInterval,
             debug: raw.debug != null ? Boolean(raw.debug) : true,
-            jackMap: mergeJackMap(raw.jackMap),
+            gridRows: jacks.gridRows,
+            gridCols: jacks.gridCols,
+            jacks: jacks.jacks,
+            jackMap: jacks.jackMap,
             targetSets: normalizeTargetSets(raw.targetSets)
         };
     }
 
     function saveDemoConfig(cfg) {
+        const jacks = applyJackConfig(cfg);
         demoConfig = {
             scanPeriodMs: Number(cfg.scanPeriodMs) || 110,
             debounceCount: Number(cfg.debounceCount) || 3,
             settleMs: Number(cfg.settleMs) || 5,
             heartbeatInterval: Number(cfg.heartbeatInterval) || 10000,
             debug: Boolean(cfg.debug),
-            jackMap: mergeJackMap(cfg.jackMap),
+            gridRows: jacks.gridRows,
+            gridCols: jacks.gridCols,
+            jacks: jacks.jacks,
+            jackMap: jacks.jackMap,
             targetSets: normalizeTargetSets(cfg.targetSets)
         };
-        localStorage.setItem(KEY_CFG, JSON.stringify(demoConfig));
+        localStorage.setItem(KEY_CFG, JSON.stringify({
+            scanPeriodMs: demoConfig.scanPeriodMs,
+            debounceCount: demoConfig.debounceCount,
+            settleMs: demoConfig.settleMs,
+            heartbeatInterval: demoConfig.heartbeatInterval,
+            debug: demoConfig.debug,
+            gridRows: demoConfig.gridRows,
+            gridCols: demoConfig.gridCols,
+            jacks: assignedJacks(demoConfig.jacks),
+            targetSets: demoConfig.targetSets
+        }));
+    }
+
+    function nodeLabel(slot) {
+        const n = nodeRC(slot);
+        return formatRc(n.r, n.c);
+    }
+
+    function portAtNode(r, c) {
+        const hit = (demoConfig.jacks || []).find((j) => j.row === r && j.col === c);
+        return hit ? hit.port : null;
+    }
+
+    function slotForNode(r, c) {
+        return demoConfig.jackMap.find((s) => {
+            const n = nodeRC(s);
+            return n.r === r && n.c === c;
+        }) || null;
+    }
+
+    function socketNodes() {
+        const nodes = [];
+        for (let r = 1; r <= demoConfig.gridRows; r++) {
+            for (let c = 1; c <= demoConfig.gridCols; c++) {
+                nodes.push({ r: r, c: c });
+            }
+        }
+        return nodes;
+    }
+
+    function syncJackMapFromJacks() {
+        demoConfig.jackMap = drawingSlotsFromJacks(demoConfig.jacks);
     }
 
     let demoConfig = loadDemoConfig();
@@ -559,8 +736,30 @@
         if (Array.isArray(state.targetSets)) {
             demoConfig.targetSets = normalizeTargetSets(state.targetSets);
         }
-        if (Array.isArray(state.jackMap)) {
-            demoConfig.jackMap = mergeJackMap(state.jackMap);
+        if (Array.isArray(state.jacks) || Array.isArray(state.jackMap) ||
+            state.gridRows != null || state.gridCols != null) {
+            const next = applyJackConfig({
+                gridRows: state.gridRows != null ? state.gridRows : demoConfig.gridRows,
+                gridCols: state.gridCols != null ? state.gridCols : demoConfig.gridCols,
+                jacks: state.jacks,
+                jackMap: state.jackMap
+            }, state.jacks != null ? state.jacks : state.jackMap);
+            demoConfig.gridRows = next.gridRows;
+            demoConfig.gridCols = next.gridCols;
+            demoConfig.jacks = next.jacks;
+            demoConfig.jackMap = next.jackMap;
+        }
+        if (Array.isArray(state.ports)) {
+            state.ports.forEach((p) => {
+                const slot = slotForPort(p.id);
+                if (slot && slot.socket) {
+                    p.tile = nodeLabel(slot);
+                    p.corner = p.hex || hexdig(p.id);
+                } else {
+                    p.tile = p.tile || "—";
+                    p.corner = p.corner || "skip";
+                }
+            });
         }
         return state;
     }
@@ -839,14 +1038,18 @@
         }
         const jacks = demoConfig.jackMap.map((slot) => {
             const p = jackXY(slot, BOARD);
-            const live = slot.port != null;
+            const live = slot.socket && slot.port != null;
             const connected = live && state.ports[slot.port] && state.ports[slot.port].connected;
-            const cls = live ? (connected ? "jack jack-live jack-on" : "jack jack-live") : "jack jack-skip";
-            const label = live ? hexdig(slot.port) : "";
+            const cls = !slot.socket
+                ? "jack jack-skip"
+                : (connected ? "jack jack-live jack-on" : (live ? "jack jack-live" : "jack jack-live jack-unmap"));
+            const label = slot.socket ? nodeLabel(slot) : "";
+            const tip = live ? nodeLabel(slot) + " · MCP " + hexdig(slot.port) : nodeLabel(slot);
             return `<g class="${cls}" transform="translate(${p.x},${p.y})">
+                <title>${tip}</title>
                 <circle class="jack-ring" r="18" />
                 <circle class="jack-hole" r="8" />
-                <text class="jack-label" y="34">${label}</text>
+                <text class="jack-label" y="36">${label}</text>
             </g>`;
         });
         host.innerHTML = `<svg viewBox="0 0 ${BOARD.w} ${BOARD.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -881,8 +1084,18 @@
         const line = el("chainLine");
         if (line) {
             line.textContent = "Chains " + (chains || "(none)") +
+                (state.chainsArchive && state.chainsArchive !== chains.toUpperCase()
+                    ? "  ·  pairs " + state.chainsArchive : "") +
                 (state.chainsUnique && state.chainsUnique !== chains.toUpperCase()
                     ? "  ·  unique " + state.chainsUnique : "");
+        }
+        const hint = el("mapHint");
+        if (hint) {
+            if (!chains) {
+                hint.textContent = "Idle means no cables. Labels are physical R#C# (row 1 is the top holes, 6 columns across the three plates). Learn the MCP map on Config — hex is on hover.";
+            } else {
+                hint.textContent = "Labels are physical R#C#. Overlay is display-only. If a jumper lands on the wrong hole, use Config → Learn jack map.";
+            }
         }
         const pills = el("statusPills");
         if (pills) {
@@ -927,6 +1140,7 @@
         host.innerHTML = [
             ["Chains", state.chains || "(none)"],
             ["Unique 3+", state.chainsUnique || "(same)"],
+            ["GPIO idle", state.gpio || "—"],
             ["AllTilesPresent", String(state.allTilesPresent)],
             ["Tile GPIO 18", state.tileRawHigh ? "HIGH (missing)" : "LOW (present)"],
             ["Fan GPIO 23", state.fansOn ? "HIGH" : "LOW"]
@@ -959,50 +1173,283 @@
         </div>`;
     }
 
-    function fillJackMap(map) {
+    function fillJackPreview(jacks) {
+        const host = el("jackPreview");
+        if (!host) {
+            return;
+        }
+        const rows = demoConfig.gridRows;
+        const cols = demoConfig.gridCols;
+        const cells = [];
+        for (let r = 1; r <= rows; r++) {
+            for (let c = 1; c <= cols; c++) {
+                const hit = (jacks || []).find((j) => j.row === r && j.col === c);
+                const label = hit ? hexdig(hit.port) : "·";
+                cells.push(`<span class="jack-preview-cell${hit ? "" : " empty"}">R${r}C${c}<b>${label}</b></span>`);
+            }
+        }
+        host.style.setProperty("--jack-preview-cols", String(cols));
+        host.innerHTML = cells.join("");
+    }
+
+    function fillJackMap(jacks) {
         const host = el("jackMap");
         if (!host) {
             return;
         }
-        map = mergeJackMap(map);
-        const tiles = [];
-        const displayCorners = ["tl", "tr", "bl", "br"];
-        for (let row = 0; row < 2; row++) {
-            for (let col = 0; col < 3; col++) {
-                const slots = map.filter((s) => s.row === row && s.col === col);
-                const selects = displayCorners.map((corner) => {
-                    const slot = slots.find((s) => s.corner === corner);
-                    const val = slot && slot.port != null ? String(slot.port) : "";
-                    const opts = ["<option value=\"\">Skip</option>"].concat(
-                        Array.from({ length: 16 }, (_, i) => {
-                            const sel = String(i) === val ? " selected" : "";
-                            return `<option value="${i}"${sel}>${hexdig(i)}</option>`;
-                        })
-                    ).join("");
-                    return `<label>${CORNER_LABEL[corner]}<select data-row="${row}" data-col="${col}" data-corner="${corner}">${opts}</select></label>`;
-                }).join("");
-                tiles.push(`<div class="jack-tile"><h4>R${row} C${col}</h4><div class="jack-tile-grid">${selects}</div></div>`);
-            }
-        }
-        host.innerHTML = tiles.join("");
+        const next = applyJackConfig({
+            gridRows: demoConfig.gridRows,
+            gridCols: demoConfig.gridCols,
+            jacks: jacks || demoConfig.jacks
+        });
+        demoConfig.jacks = next.jacks;
+        demoConfig.jackMap = next.jackMap;
+        host.innerHTML = next.jacks.map((j) => {
+            return `<label class="jack-port-row">#${hexdig(j.port).padStart(2, "0")}
+                <input data-jack-port="${j.port}" maxlength="8" placeholder="R1C1" value="${escapeAttr(formatRc(j.row, j.col))}">
+            </label>`;
+        }).join("");
+        fillJackPreview(next.jacks);
     }
 
-    function collectJackMap() {
+    function collectJacks() {
         const host = el("jackMap");
         if (!host) {
-            return demoConfig.jackMap;
+            return assignedJacks(demoConfig.jacks);
         }
-        const slots = [];
-        host.querySelectorAll("select").forEach((sel) => {
-            const v = sel.value;
-            slots.push({
-                row: Number(sel.getAttribute("data-row")),
-                col: Number(sel.getAttribute("data-col")),
-                corner: sel.getAttribute("data-corner"),
-                port: v === "" ? null : Number(v)
-            });
+        const raw = emptyJacks();
+        host.querySelectorAll("[data-jack-port]").forEach((input) => {
+            const port = Number(input.getAttribute("data-jack-port"));
+            const rc = parseRcToken(input.value);
+            if (!Number.isInteger(port) || port < 0 || port >= PORT_COUNT) {
+                return;
+            }
+            raw[port] = {
+                port: port,
+                row: rc ? rc.row : 0,
+                col: rc ? rc.col : 0
+            };
         });
-        return mergeJackMap(slots);
+        return assignedJacks(normalizeJacks(raw, demoConfig.gridRows, demoConfig.gridCols));
+    }
+
+    function twoPortPair(state) {
+        const groups = parseChains(state && state.chains);
+        if (groups.length !== 1 || groups[0].length !== 2) {
+            return null;
+        }
+        return groups[0].slice();
+    }
+
+    function setPortOnNode(r, c, port) {
+        if (port == null || port < 0 || port >= PORT_COUNT) {
+            return;
+        }
+        demoConfig.jacks.forEach((j) => {
+            if (j.port === port || (j.row === r && j.col === c)) {
+                j.row = 0;
+                j.col = 0;
+            }
+        });
+        demoConfig.jacks[port] = { port: port, row: r, col: c };
+        syncJackMapFromJacks();
+    }
+
+    function fillHomeSelect(sel, home) {
+        if (!sel) {
+            return;
+        }
+        const nodes = socketNodes();
+        sel.innerHTML = nodes.map((n) => {
+            const id = n.r + "," + n.c;
+            const pick = id === home ? " selected" : "";
+            return `<option value="${id}"${pick}>${formatRc(n.r, n.c)}</option>`;
+        }).join("");
+    }
+
+    function bindJackLearn() {
+        const statusEl = el("mapLearnStatus");
+        const grid = el("nodeGrid");
+        const homeSel = el("mapHomeNode");
+        if (!statusEl || !grid) {
+            return;
+        }
+
+        const KEY_HOME = "px.patch.mapHome";
+        let homeRC = localStorage.getItem(KEY_HOME) || "1,1";
+        let homePort = null;
+        let prevPair = null;
+        let pending = null;
+        let lastPair = null;
+        let lastState = null;
+
+        fillHomeSelect(homeSel, homeRC);
+        if (homeSel) {
+            homeSel.value = homeRC;
+            homeSel.addEventListener("change", () => {
+                homeRC = homeSel.value || "1,1";
+                localStorage.setItem(KEY_HOME, homeRC);
+                homePort = null;
+                prevPair = null;
+                pending = null;
+                paint();
+            });
+        }
+
+        function homeNode() {
+            const p = String(homeRC).split(",");
+            return { r: Number(p[0]) || 1, c: Number(p[1]) || 1 };
+        }
+
+        function farPort(pair) {
+            if (homePort == null || !pair) {
+                return null;
+            }
+            if (pair[0] === homePort) {
+                return pair[1];
+            }
+            if (pair[1] === homePort) {
+                return pair[0];
+            }
+            return null;
+        }
+
+        function lockHomeFromPairs(a, b) {
+            const inter = a.filter((p) => b.indexOf(p) >= 0);
+            if (inter.length === 1) {
+                homePort = inter[0];
+                const hn = homeNode();
+                setPortOnNode(hn.r, hn.c, homePort);
+            }
+        }
+
+        function paint() {
+            const pair = lastPair;
+            const far = farPort(pair);
+            const hn = homeNode();
+            let msg;
+            if (!pair) {
+                msg = lastState && lastState.chains
+                    ? "Need exactly one jumper (2 ports). Now: " + lastState.chains
+                    : "Keep one end in R" + hn.r + "C" + hn.c +
+                        ". Plug the other end into the next physical node. When a pair appears, click that node.";
+            } else if (homePort == null) {
+                msg = "Pair MCP " + hexdig(pair[0]) + "+" + hexdig(pair[1]) +
+                    ". Click the FAR node (not home). Then move the far end and click the next node to lock home.";
+            } else if (far == null) {
+                msg = "Home is MCP " + hexdig(homePort) + " at R" + hn.r + "C" + hn.c +
+                    ". This pair does not include home — unplug extras.";
+            } else {
+                msg = "Home R" + hn.r + "C" + hn.c + " = MCP " + hexdig(homePort) +
+                    ". Far end is MCP " + hexdig(far) + " — click that physical node.";
+            }
+            statusEl.textContent = msg;
+
+            const cells = [];
+            const rows = demoConfig.gridRows;
+            const cols = demoConfig.gridCols;
+            grid.style.setProperty("--node-cols", String(cols));
+            for (let r = 1; r <= rows; r++) {
+                for (let c = 1; c <= cols; c++) {
+                    const id = formatRc(r, c);
+                    const port = portAtNode(r, c);
+                    const isHome = r === hn.r && c === hn.c;
+                    const cls = ["node-cell"];
+                    if (isHome) {
+                        cls.push("home");
+                    }
+                    if (port != null) {
+                        cls.push("assigned");
+                    }
+                    if (far != null && port === far) {
+                        cls.push("far");
+                    }
+                    const mcp = port != null ? hexdig(port) : "—";
+                    cells.push(`<button type="button" class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${id}<small>MCP ${mcp}</small></button>`);
+                }
+            }
+            grid.innerHTML = cells.join("");
+        }
+
+        function assignNode(r, c) {
+            const pair = lastPair;
+            if (r < 1 || c < 1 || r > demoConfig.gridRows || c > demoConfig.gridCols) {
+                return;
+            }
+            if (!pair) {
+                statusEl.textContent = "No 2-port chain right now. Plug R" + homeNode().r + "C" + homeNode().c + " to that node first.";
+                return;
+            }
+            if (homePort == null) {
+                if (!pending) {
+                    pending = { pair: pair.slice(), r: r, c: c };
+                    prevPair = pair.slice();
+                    paint();
+                    statusEl.textContent = "Remembered as FAR node R" + r + "C" + c +
+                        ". Keep home plugged, move the far end, click the next node.";
+                    return;
+                }
+                lockHomeFromPairs(pending.pair, pair);
+                if (homePort == null) {
+                    pending = { pair: pair.slice(), r: r, c: c };
+                    paint();
+                    statusEl.textContent = "Those two pairs did not share a port. Try again from home.";
+                    return;
+                }
+                const firstFar = pending.pair[0] === homePort ? pending.pair[1] : pending.pair[0];
+                setPortOnNode(pending.r, pending.c, firstFar);
+                pending = null;
+            }
+            const far = farPort(pair);
+            if (far != null) {
+                setPortOnNode(r, c, far);
+            }
+            syncJackMapFromJacks();
+            saveDemoConfig(demoConfig);
+            fillJackMap(demoConfig.jacks);
+            paint();
+        }
+
+        grid.addEventListener("click", (ev) => {
+            const btn = ev.target.closest("[data-r]");
+            if (!btn) {
+                return;
+            }
+            assignNode(Number(btn.getAttribute("data-r")), Number(btn.getAttribute("data-c")));
+        });
+
+        if (el("mapLearnClear")) {
+            el("mapLearnClear").addEventListener("click", () => {
+                demoConfig.jacks = emptyJacks();
+                syncJackMapFromJacks();
+                homePort = null;
+                prevPair = null;
+                pending = null;
+                saveDemoConfig(demoConfig);
+                fillJackMap(demoConfig.jacks);
+                paint();
+            });
+        }
+
+        async function poll() {
+            try {
+                lastState = await api("/api/state");
+                lastPair = twoPortPair(lastState);
+                if (lastPair && prevPair && homePort == null) {
+                    lockHomeFromPairs(prevPair, lastPair);
+                }
+                if (lastPair) {
+                    prevPair = lastPair.slice();
+                }
+                paint();
+            } catch {
+                /* keep last */
+            }
+        }
+
+        paint();
+        poll();
+        setInterval(poll, 400);
     }
 
     function escapeAttr(value) {
@@ -1078,8 +1525,17 @@
         if (!cfg) {
             return;
         }
-        if (cfg.jackMap) {
-            demoConfig.jackMap = mergeJackMap(cfg.jackMap);
+        if (cfg.jacks || cfg.jackMap || cfg.gridRows != null || cfg.gridCols != null) {
+            const next = applyJackConfig({
+                gridRows: cfg.gridRows != null ? cfg.gridRows : demoConfig.gridRows,
+                gridCols: cfg.gridCols != null ? cfg.gridCols : demoConfig.gridCols,
+                jacks: cfg.jacks,
+                jackMap: cfg.jackMap
+            }, cfg.jacks != null ? cfg.jacks : cfg.jackMap);
+            demoConfig.gridRows = next.gridRows;
+            demoConfig.gridCols = next.gridCols;
+            demoConfig.jacks = next.jacks;
+            demoConfig.jackMap = next.jackMap;
         }
         if (cfg.targetSets) {
             demoConfig.targetSets = normalizeTargetSets(cfg.targetSets);
@@ -1163,7 +1619,7 @@
         fetchStatusIcons();
         setInterval(fetchStatusIcons, 10000);
         refresh().catch((e) => appendLog(el("actionLog"), String(e)));
-        setInterval(() => refresh().catch(() => {}), 2000);
+        setInterval(() => refresh().catch(() => {}), 400);
     }
 
     async function pageMonitor() {
@@ -1188,7 +1644,7 @@
         fetchStatusIcons();
         setInterval(fetchStatusIcons, 10000);
         refresh();
-        setInterval(() => refresh().catch(() => {}), 2000);
+        setInterval(() => refresh().catch(() => {}), 400);
     }
 
     async function pageConfig() {
@@ -1196,21 +1652,56 @@
         const log = el("configLog");
         try {
             const cfg = await api("/api/config");
-            fillForm(form, cfg);
-            fillJackMap(cfg.jackMap);
-            fillTargetSets(cfg.targetSets);
             applyConfigObject(cfg);
+            fillForm(form, cfg);
+            fillJackMap(demoConfig.jacks);
+            fillTargetSets(cfg.targetSets);
             appendLog(log, cfg);
         } catch (e) {
-            fillJackMap(demoConfig.jackMap);
+            fillForm(form, demoConfig);
+            fillJackMap(demoConfig.jacks);
             fillTargetSets(demoConfig.targetSets);
             appendLog(log, String(e));
+        }
+        bindJackLearn();
+
+        function readGridFromForm() {
+            if (!form) {
+                return;
+            }
+            const rows = form.elements.gridRows;
+            const cols = form.elements.gridCols;
+            if (rows) {
+                demoConfig.gridRows = clampGrid(rows.value, demoConfig.gridRows);
+            }
+            if (cols) {
+                demoConfig.gridCols = clampGrid(cols.value, demoConfig.gridCols);
+            }
+        }
+
+        if (form) {
+            ["gridRows", "gridCols"].forEach((name) => {
+                const field = form.elements[name];
+                if (!field) {
+                    return;
+                }
+                field.addEventListener("change", () => {
+                    readGridFromForm();
+                    demoConfig.jacks = normalizeJacks(collectJacks(), demoConfig.gridRows, demoConfig.gridCols);
+                    syncJackMapFromJacks();
+                    fillJackMap(demoConfig.jacks);
+                    fillHomeSelect(el("mapHomeNode"), el("mapHomeNode") ? el("mapHomeNode").value : "1,1");
+                });
+            });
         }
 
         async function postConfig(path) {
             const body = {};
             collectForm(form, body);
-            body.jackMap = collectJackMap();
+            readGridFromForm();
+            body.gridRows = demoConfig.gridRows;
+            body.gridCols = demoConfig.gridCols;
+            body.jacks = collectJacks();
             body.targetSets = collectTargetSets();
             appendLog(log, await api(path, { method: "POST", body: JSON.stringify(body) }));
             saveDemoConfig(body);
@@ -1232,10 +1723,10 @@
             el("restoreDefaults").addEventListener("click", (ev) => {
                 ev.preventDefault();
                 api("/api/config/defaults").then((cfg) => {
-                    fillForm(form, cfg);
-                    fillJackMap(cfg.jackMap);
-                    fillTargetSets(cfg.targetSets);
                     applyConfigObject(cfg);
+                    fillForm(form, cfg);
+                    fillJackMap(demoConfig.jacks);
+                    fillTargetSets(cfg.targetSets);
                     appendLog(log, cfg);
                 }).catch((e) => appendLog(log, String(e)));
             });

@@ -4,11 +4,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <string.h>
 #include "driver/gpio.h"
 #include "esp_app_desc.h"
 #include "esp_log.h"
 #include "esp_spiffs.h"
+#include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -19,7 +21,7 @@
 static const char *TAG = "Patch32Prop";
 
 #define PATCH_CONFIG_FILE_PATH "/spiffs/config.json"
-#define PATCH_CONFIG_JSON_MAX 2048
+#define PATCH_CONFIG_JSON_MAX 4096
 #define PATCH_EVENT_QUEUE_LEN 8
 #define PATCH_EVENT_JSON_MAX 256
 #define PORT_COUNT 16
@@ -28,11 +30,17 @@ static const char *TAG = "Patch32Prop";
 #define PATCH_TARGET_SET_COUNT 8
 #define PATCH_TARGET_LABEL_MAX 16
 #define PATCH_TARGET_CHAINS_MAX 48
+#define PATCH_GRID_MAX 16
 
 typedef struct {
     char label[PATCH_TARGET_LABEL_MAX];
     char chains[PATCH_TARGET_CHAINS_MAX];
 } patch_target_set_t;
+
+typedef struct {
+    int8_t row; /* 1-based; 0 = unused */
+    int8_t col;
+} patch_jack_t;
 
 typedef struct {
     int scan_period_ms;
@@ -41,6 +49,10 @@ typedef struct {
     int heartbeat_interval_ms;
     bool debug;
     bool debug_mqtt;
+    /* Display-only grid. Live drawing is still the 4×6 Crafty Fox panel. */
+    int grid_rows;
+    int grid_cols;
+    patch_jack_t jacks[PORT_COUNT];
     /* Display-only Live overlays. The prop does not match or solve against these. */
     patch_target_set_t targets[PATCH_TARGET_SET_COUNT];
 } patch_config_t;
@@ -154,6 +166,28 @@ static void set_default_target_sets(patch_config_t *cfg)
     copy_bounded(cfg->targets[1].chains, sizeof(cfg->targets[1].chains), "1D,23,56,7A");
 }
 
+/* Crafty Fox 2023 panel map (Drive screenshot). Port N → R#C#. */
+static void set_default_jacks(patch_config_t *cfg)
+{
+    static const int8_t k_row[PORT_COUNT] = {
+        1, 3, 3, 2, 4, 1, 2, 4, 2, 3, 2, 1, 1, 4, 4, 3
+    };
+    static const int8_t k_col[PORT_COUNT] = {
+        1, 3, 1, 3, 1, 3, 2, 2, 5, 5, 4, 6, 4, 5, 3, 6
+    };
+    int i;
+
+    if (!cfg) {
+        return;
+    }
+    cfg->grid_rows = 4;
+    cfg->grid_cols = 6;
+    for (i = 0; i < PORT_COUNT; ++i) {
+        cfg->jacks[i].row = k_row[i];
+        cfg->jacks[i].col = k_col[i];
+    }
+}
+
 static int clamp_int(int value, int min_v, int max_v)
 {
     if (value < min_v) {
@@ -188,6 +222,7 @@ static void set_default_config(patch_config_t *cfg)
     cfg->heartbeat_interval_ms = 10000;
     cfg->debug = true;
     cfg->debug_mqtt = false;
+    set_default_jacks(cfg);
     set_default_target_sets(cfg);
 }
 
@@ -414,18 +449,28 @@ static void scan_once_unlocked(void)
     }
 
     mcp23s17_all_input_pullup();
+    vTaskDelay(pdMS_TO_TICKS(settle));
     for (i = 0; i < PORT_COUNT - 1; ++i) {
-        uint16_t gpio;
+        uint16_t idle;
+        uint16_t a;
+        uint16_t b;
+        uint16_t fell;
+        idle = mcp23s17_read_gpio();
         mcp23s17_pin_output_low(i);
-        vTaskDelay(pdMS_TO_TICKS(settle));
-        gpio = mcp23s17_read_gpio();
+        /* Wire continuity is DC; do not wait a full settle tick here. */
+        esp_rom_delay_us(300);
+        a = mcp23s17_read_gpio();
+        b = mcp23s17_read_gpio();
+        /* HIGH→LOW on both samples. A pin still LOW from the last drive is ignored. */
+        fell = (uint16_t)(idle & ~a & ~b);
         for (j = i + 1; j < PORT_COUNT; ++j) {
-            if ((gpio & (1u << j)) == 0) {
+            if (fell & (1u << j)) {
                 adj[i] |= (uint16_t)(1u << j);
                 adj[j] |= (uint16_t)(1u << i);
             }
         }
         mcp23s17_pin_input_pullup(i);
+        vTaskDelay(pdMS_TO_TICKS(settle));
     }
     s_ctx.last_gpio = mcp23s17_read_gpio();
     s_ctx.spi_ok = mcp23s17_ok();
@@ -535,10 +580,54 @@ static void apply_config_fields_unlocked(const char *json)
     {
         cJSON *root = lib_json_parse(json);
         if (root) {
-            cJSON *arr = cJSON_GetObjectItemCaseSensitive(root, "targetSets");
+            cJSON *arr;
+            cJSON *jacks;
+            int i;
+
+            if (lib_json_get_int(root, "gridRows", &i_val)) {
+                s_ctx.cfg.grid_rows = clamp_int(i_val, 1, PATCH_GRID_MAX);
+            }
+            if (lib_json_get_int(root, "gridCols", &i_val)) {
+                s_ctx.cfg.grid_cols = clamp_int(i_val, 1, PATCH_GRID_MAX);
+            }
+
+            jacks = cJSON_GetObjectItemCaseSensitive(root, "jacks");
+            if (cJSON_IsArray(jacks)) {
+                int n = cJSON_GetArraySize(jacks);
+                for (i = 0; i < PORT_COUNT; ++i) {
+                    s_ctx.cfg.jacks[i].row = 0;
+                    s_ctx.cfg.jacks[i].col = 0;
+                }
+                for (i = 0; i < n; ++i) {
+                    cJSON *item = cJSON_GetArrayItem(jacks, i);
+                    int port = -1;
+                    int row = 0;
+                    int col = 0;
+                    if (!cJSON_IsObject(item)) {
+                        continue;
+                    }
+                    if (!lib_json_get_int(item, "port", &port)) {
+                        continue;
+                    }
+                    (void)lib_json_get_int(item, "row", &row);
+                    (void)lib_json_get_int(item, "col", &col);
+                    if (port < 0 || port >= PORT_COUNT) {
+                        continue;
+                    }
+                    if (row < 1 || row > s_ctx.cfg.grid_rows ||
+                        col < 1 || col > s_ctx.cfg.grid_cols) {
+                        s_ctx.cfg.jacks[port].row = 0;
+                        s_ctx.cfg.jacks[port].col = 0;
+                        continue;
+                    }
+                    s_ctx.cfg.jacks[port].row = (int8_t)row;
+                    s_ctx.cfg.jacks[port].col = (int8_t)col;
+                }
+            }
+
+            arr = cJSON_GetObjectItemCaseSensitive(root, "targetSets");
             if (cJSON_IsArray(arr)) {
                 int n = cJSON_GetArraySize(arr);
-                int i;
                 for (i = 0; i < PATCH_TARGET_SET_COUNT; ++i) {
                     cJSON *item = (i < n) ? cJSON_GetArrayItem(arr, i) : NULL;
                     char label[PATCH_TARGET_LABEL_MAX] = "";
@@ -603,13 +692,35 @@ static void fill_config_json(char *out, size_t out_size, const patch_config_t *c
                              "\"heartbeatInterval\":%d,"
                              "\"debug\":%s,"
                              "\"debugMqtt\":%s,"
-                             "\"targetSets\":[",
+                             "\"gridRows\":%d,"
+                             "\"gridCols\":%d,"
+                             "\"jacks\":[",
                              cfg->scan_period_ms,
                              cfg->debounce_count,
                              cfg->settle_ms,
                              cfg->heartbeat_interval_ms,
                              cfg->debug ? "true" : "false",
-                             cfg->debug_mqtt ? "true" : "false");
+                             cfg->debug_mqtt ? "true" : "false",
+                             cfg->grid_rows,
+                             cfg->grid_cols);
+    {
+        int first_jack = 1;
+        for (i = 0; i < PORT_COUNT; ++i) {
+            if (cfg->jacks[i].row < 1 || cfg->jacks[i].col < 1) {
+                continue;
+            }
+            pos = config_json_append(out,
+                                     out_size,
+                                     pos,
+                                     "%s{\"port\":%d,\"row\":%d,\"col\":%d}",
+                                     first_jack ? "" : ",",
+                                     i,
+                                     (int)cfg->jacks[i].row,
+                                     (int)cfg->jacks[i].col);
+            first_jack = 0;
+        }
+    }
+    pos = config_json_append(out, out_size, pos, "],\"targetSets\":[");
     for (i = 0; i < PATCH_TARGET_SET_COUNT; ++i) {
         char elab[48];
         char ech[96];
@@ -769,6 +880,7 @@ void patch_engine_get_state_json(char *out, size_t out_size)
                             "\"tileRawHigh\":%s,"
                             "\"fansOn\":%s,"
                             "\"spiOk\":%s,"
+                            "\"gpio\":\"0x%04X\","
                             "\"ports\":[",
                             (long long)now_ms(),
                             app ? app->version : "0.0.0",
@@ -779,7 +891,8 @@ void patch_engine_get_state_json(char *out, size_t out_size)
                             s_ctx.all_tiles_present ? "true" : "false",
                             tile_raw_high ? "true" : "false",
                             s_ctx.fans_on ? "true" : "false",
-                            s_ctx.spi_ok ? "true" : "false");
+                            s_ctx.spi_ok ? "true" : "false",
+                            (unsigned)s_ctx.last_gpio);
 
     for (i = 0; i < PORT_COUNT; ++i) {
         bool connected = s_ctx.port_chain[i] != 0;

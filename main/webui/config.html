@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>PX-Patch-V1 Config</title>
-    <link rel="stylesheet" href="styles.css?v=patch16">
+    <link rel="stylesheet" href="styles.css?v=patch21">
 </head>
 <body>
     <div class="bg-grid" aria-hidden="true"></div>
@@ -48,6 +48,12 @@
                 <label>Heartbeat (ms)
                     <input name="heartbeatInterval" type="number" min="100" step="100">
                 </label>
+                <label>Grid rows
+                    <input name="gridRows" type="number" min="1" max="16" step="1">
+                </label>
+                <label>Grid columns
+                    <input name="gridCols" type="number" min="1" max="16" step="1">
+                </label>
                 <label class="toggle-field">Debug telemetry on Monitor
                     <span class="toggle-row">
                         <input name="debug" type="checkbox">
@@ -59,8 +65,21 @@
             <h3 class="subhead">Target chain sets</h3>
             <p class="hint">Up to 8 named overlays for the Live graphic. Seeded with Crafty Fox A/B. Leave a chains field blank to hide that set from the Live dropdown. Apply + Save stores them on the device.</p>
             <div class="target-sets" id="targetSets"></div>
+            <h3 class="subhead">Learn jack map</h3>
+            <p class="hint">Optional: keep one end in Home, plug the other end, click that node. Apply + Save writes the map to the device. Live still draws the 4×6 Crafty Fox panel; ports outside R1–R4 / C1–C6 are stored but not drawn.</p>
+            <div class="map-learn" id="mapLearn">
+                <p class="map-learn-status" id="mapLearnStatus">Waiting for a jumper…</p>
+                <div class="map-learn-actions">
+                    <label>Home
+                        <select id="mapHomeNode"></select>
+                    </label>
+                    <button type="button" id="mapLearnClear" class="btn btn-ghost">Clear learned ports</button>
+                </div>
+                <div class="node-grid" id="nodeGrid"></div>
+            </div>
             <h3 class="subhead">Jack map</h3>
-            <p class="hint">Each silver tile has four holes (TL, BL, TR, BR). Assign MCP ports 0–F or Skip. Firmware scans ports in numeric order; this table is display-only until confirmed on the bench.</p>
+            <p class="hint">MCP port → node. Default is the 2023 Crafty Fox panel (#00 = R1C1). Blank = unused. Change a field if a wire moves, then Apply + Save.</p>
+            <div class="jack-preview" id="jackPreview" aria-hidden="true"></div>
             <div class="jack-map" id="jackMap"></div>
             <pre id="configLog" class="log"></pre>
         </section>
@@ -76,7 +95,7 @@
         </section>
     </main>
 
-    <script src="app.js?v=patch15"></script>
+    <script src="app.js?v=patch21"></script>
     <script>
         (function boot(attempt) {
             if (window.PX && typeof window.PX.pageConfig === "function") {

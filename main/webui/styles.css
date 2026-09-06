@@ -1609,13 +1609,17 @@ select optgroup {
 
 .jack-label {
     text-anchor: middle;
-    font-size: 15px;
+    font-size: 12px;
     font-weight: 800;
     fill: #102038;
     stroke: #e8edf4;
     stroke-width: 3px;
     paint-order: stroke fill;
     font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+.jack-unmap {
+    opacity: 0.55;
 }
 
 .jack-skip .jack-label {
@@ -1782,44 +1786,132 @@ select optgroup {
     border-color: transparent;
 }
 
-.jack-map {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.65rem;
-    margin-top: 0.5rem;
+.map-learn-status {
+    margin: 0.35rem 0 0.5rem;
+    color: var(--text);
 }
 
-.jack-tile {
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    padding: 0.55rem;
-    background: var(--metric);
+.map-learn-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: end;
+    margin-bottom: 0.55rem;
 }
 
-.jack-tile h4 {
-    margin: 0 0 0.4rem;
-    font-size: 0.82rem;
-    color: var(--muted);
-}
-
-.jack-tile-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.35rem;
-}
-
-.jack-tile-grid label {
+.map-learn-actions label {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
-    font-size: 0.72rem;
+    gap: 0.2rem;
+    font-size: 0.78rem;
     color: var(--muted);
+}
+
+.node-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--node-cols, 6), minmax(0, 1fr));
+    gap: 0.35rem;
+    margin: 0.4rem 0 1rem;
+}
+
+.node-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.4rem 0.15rem;
+    background: var(--metric);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.node-cell small {
+    font-weight: 600;
+    font-size: 0.68rem;
+    color: var(--muted);
+}
+
+.node-cell.home {
+    box-shadow: inset 0 0 0 2px var(--cta);
+}
+
+.node-cell.assigned {
+    background: rgba(0, 196, 92, 0.12);
+}
+
+.node-cell.far {
+    box-shadow: inset 0 0 0 2px #ef4444;
+}
+
+.node-cell.no-hole {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.jack-preview {
+    display: grid;
+    grid-template-columns: repeat(var(--jack-preview-cols, 6), minmax(0, 1fr));
+    gap: 0.35rem;
+    margin: 0.55rem 0 0.7rem;
+}
+
+.jack-preview-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.1rem;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 0.35rem 0.15rem;
+    background: var(--metric);
+    font-size: 0.68rem;
+    color: var(--muted);
+}
+
+.jack-preview-cell b {
+    font-size: 1rem;
+    color: var(--text);
+}
+
+.jack-preview-cell.empty b {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+.jack-map {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.55rem;
+    margin-top: 0.35rem;
+}
+
+.jack-port-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 800;
+    color: var(--muted);
+}
+
+.jack-port-row input {
+    width: 100%;
+    text-transform: uppercase;
 }
 
 @media (max-width: 820px) {
     .jack-map,
     .port-strip {
         grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .node-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
     .live-layout {

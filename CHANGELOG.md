@@ -4,6 +4,49 @@ All notable changes to px-patch-v1 are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Version numbers correspond to the contents of `version.txt`.
 
+## [0.11] - 2026-09-05
+
+### Added
+
+- Device config now stores the jack map as MCP port → `R#C#` (`#00 = R1C1`)
+  plus `gridRows` / `gridCols`. Default is the 2023 Crafty Fox panel. Apply +
+  Save persists it on the ESP; Live drawing stays the existing 4×6 diagram.
+
+## [0.10] - 2026-09-05
+
+### Changed
+
+- Default jack map assigns MCP 0–F column-major (down each R1–R4 column,
+  then the next column to the right), matching how the panel was wired.
+  Same 16 sockets; only the port numbers moved.
+
+## [0.09] - 2026-09-05
+
+### Added
+
+- Config **Learn jack map**: keep one end in a home node (R1C1), click the
+  physical node when a 2-port chain appears. Live jack labels are now R#C#
+  (6 columns across the three plates), not MCP hex.
+
+## [0.08] - 2026-09-05
+
+### Fixed
+
+- Scan now requires a HIGH→LOW edge (double-read) so a pin that is slow to
+  rise after being driven is not treated as connected to every later pin.
+  That ghost star was published as `0123456` and drawn as six Live segments
+  for a single jumper.
+- Live / Monitor poll 400 ms (was 2 s).
+
+## [0.07] - 2026-09-05
+
+### Fixed
+
+- MCP23S17 init now forces BANK=0 (write IOCON at 0x05 and 0x0A), enables SEQOP,
+  keeps pull-ups on undriven pins, and scans at 1 MHz. Empty `{Chains}` / idle
+  Live board with a real jumper was the expander left in a leftover BANK after
+  OTA (this board has no RST).
+
 ## [0.05] - 2026-09-04
 
 ### Fixed

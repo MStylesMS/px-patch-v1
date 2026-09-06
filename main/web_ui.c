@@ -623,7 +623,7 @@ static void mqtt_publish_or_warn(const char *topic, const char *payload, int qos
 
 static int mqtt_state_interval_ms(void)
 {
-    char cfg[2048];
+    char cfg[4096];
     int heartbeat = 10000;
 
     patch_engine_get_config_json(cfg, sizeof(cfg));
@@ -1394,7 +1394,7 @@ static esp_err_t config_get_handler(httpd_req_t *req)
 
 static esp_err_t config_defaults_get_handler(httpd_req_t *req)
 {
-    char payload[2048];
+    char payload[4096];
 
     if (check_ui_auth(req) != ESP_OK) {
         return ESP_FAIL;

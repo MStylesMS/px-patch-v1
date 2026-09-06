@@ -4,7 +4,7 @@ TFD control-room patch / ventilation firmware for Paradox escape rooms.
 
 ## Status
 
-Firmware **0.05** on Patch32Prop (`.52`). I/O only: scan 16 ports, report
+Firmware **0.11** on Patch32Prop (`.52`). I/O only: scan 16 ports, report
 `{Chains}` / `{AllTilesPresent}`, drive fans. Config may store up to 8 named
 target-chain strings for the Live overlay; do **not** match or solve on the ESP.
 
@@ -47,9 +47,12 @@ Broker is **`.132`**. Accept `command` as an alias of `Command`; publish PascalC
 
 ## Jack map
 
-Archive firmware has **no** row/column table — ports are MCP 0–15 in scan
-order. The Live graphic uses a provisional 2×3 tile layout (TL / BL / TR / BR
-per tile). Remap on Config after comparing to the physical panel.
+Config stores `gridRows`, `gridCols`, and `jacks: [{port,row,col}, …]`
+(display-only; not used by the scan). Default is the 2023 Crafty Fox
+panel (`#00 = R1C1`, `#01 = R3C3`, …). Edit on Config if a wire moves;
+Apply + Save writes `/spiffs/config.json`. Live still draws the existing
+4×6 / 2×3 tile graphic — ports outside R1–R4 / C1–C6 are kept but not
+drawn. Archive firmware has no row/column table.
 
 ## Other conventions
 
