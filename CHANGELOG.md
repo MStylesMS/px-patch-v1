@@ -4,6 +4,16 @@ All notable changes to px-patch-v1 are documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 Version numbers correspond to the contents of `version.txt`.
 
+## [Unreleased]
+
+## [0.12] - 2026-09-07
+
+### Added
+
+- GM puzzle solve: `{"command":"solve"}` (alias `solveVent`) publishes
+  `{event:"solved"}` / `{Solved:true}` for suite control. Live **Solve patch**
+  + **Reset** (clears GM latch). Prop remains I/O for chain matching.
+
 ## [0.11] - 2026-09-05
 
 ### Added

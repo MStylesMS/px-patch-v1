@@ -58,8 +58,10 @@
                 <button class="btn btn-start" data-cmd='{"Command":"fansOn"}'>Fans On</button>
                 <button class="btn btn-pause" data-cmd='{"Command":"fansOff"}'>Fans Off</button>
                 <button class="btn" data-cmd='{"command":"reportState"}'>Report State</button>
+                <button class="btn btn-start" data-cmd='{"command":"solve"}'>Solve patch</button>
+                <button class="btn btn-warn" data-cmd='{"command":"reset"}'>Reset</button>
             </div>
-            <p class="hint">Legacy Prop MQTT. Solve / A-B matching stay in control.js — not on this prop. Report State sends lowercase <code>command</code> like live Node.</p>
+            <p class="hint">Solve patch publishes <code>{event:solved}</code> for suite/PxO (I/O scan unchanged). Reset clears the GM solved latch.</p>
             <pre id="actionLog" class="log"></pre>
         </section>
     </main>

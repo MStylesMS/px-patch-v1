@@ -69,6 +69,7 @@ typedef struct {
     int tile_debounce;
     bool fans_on;
     bool spi_ok;
+    bool gm_solved;
     uint16_t last_gpio;
     uint8_t port_chain[PORT_COUNT];
     char mqtt_last_in[96];
@@ -879,6 +880,7 @@ void patch_engine_get_state_json(char *out, size_t out_size)
                             "\"allTilesPresent\":%s,"
                             "\"tileRawHigh\":%s,"
                             "\"fansOn\":%s,"
+                            "\"solved\":%s,"
                             "\"spiOk\":%s,"
                             "\"gpio\":\"0x%04X\","
                             "\"ports\":[",
@@ -891,6 +893,7 @@ void patch_engine_get_state_json(char *out, size_t out_size)
                             s_ctx.all_tiles_present ? "true" : "false",
                             tile_raw_high ? "true" : "false",
                             s_ctx.fans_on ? "true" : "false",
+                            s_ctx.gm_solved ? "true" : "false",
                             s_ctx.spi_ok ? "true" : "false",
                             (unsigned)s_ctx.last_gpio);
 
@@ -989,6 +992,20 @@ static esp_err_t handle_command_unlocked(const char *command, char *response, si
         publish_chains_unlocked();
         publish_tiles_unlocked();
         snprintf(response, response_size, "{\"ok\":true,\"Command\":\"reportState\"}");
+        return ESP_OK;
+    }
+    if (strcmp(command, "solve") == 0 || strcmp(command, "solveVent") == 0) {
+        s_ctx.gm_solved = true;
+        queue_event_unlocked("{\"event\":\"solved\"}");
+        record_mqtt_out_unlocked("{\"event\":\"solved\"}");
+        queue_event_unlocked("{\"Solved\":true}");
+        record_mqtt_out_unlocked("{\"Solved\":true}");
+        snprintf(response, response_size, "{\"ok\":true,\"Command\":\"solve\"}");
+        return ESP_OK;
+    }
+    if (strcmp(command, "reset") == 0) {
+        s_ctx.gm_solved = false;
+        snprintf(response, response_size, "{\"ok\":true,\"Command\":\"reset\"}");
         return ESP_OK;
     }
 

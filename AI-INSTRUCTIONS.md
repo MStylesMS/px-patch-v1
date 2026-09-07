@@ -4,9 +4,9 @@ TFD control-room patch / ventilation firmware for Paradox escape rooms.
 
 ## Status
 
-Firmware **0.11** on Patch32Prop (`.52`). I/O only: scan 16 ports, report
-`{Chains}` / `{AllTilesPresent}`, drive fans. Config may store up to 8 named
-target-chain strings for the Live overlay; do **not** match or solve on the ESP.
+Firmware **0.12** on Patch32Prop (`.52`). I/O scan + fans; GM `solve` publishes
+suite `{event:"solved"}` (does **not** invent A/B chain matching on the ESP).
+Config may store up to 8 named target-chain strings for the Live overlay.
 
 ## Firmware
 
@@ -19,7 +19,7 @@ target-chain strings for the Live overlay; do **not** match or solve on the ESP.
   `.\scripts\ota_upload.ps1 -HostAddress 192.168.8.52 -Legacy` (old patch32 `POST /ota`).
 - SoftAP SSID form: `Paradox-PXPatchV1-XXXX`.
 - Default mDNS hostname: **`patch.local`** (`networkName`; change via Connect or `POST /api/device/name`).
-- **I/O only.** Do not put A/B solutions on the ESP.
+- Do **not** put A/B chain solutions on the ESP; GM `solve` only publishes solved.
 
 Local UI preview without flash:
 
@@ -39,11 +39,12 @@ phone / tablet / desktop — see Responsive section). Plan:
 
 | Topic | Payload |
 |-------|---------|
-| `/Paradox/TFD/Patch/Prop/Commands` | `fansOn` / `fansOff` / `reportState` |
-| `/Paradox/TFD/Patch/Prop/Events` | `{Chains}`, `{AllTilesPresent}` |
+| `/Paradox/TFD/Patch/Prop/Commands` | `fansOn` / `fansOff` / `reportState` / GM `solve` / `reset` |
+| `/Paradox/TFD/Patch/Prop/Events` | `{Chains}`, `{AllTilesPresent}`, `{event:"solved"}` |
 | `/Paradox/Props` | heartbeat id `Patch32Prop` |
 
 Broker is **`.132`**. Accept `command` as an alias of `Command`; publish PascalCase.
+**I/O scan stays dumb** — GM solve only emits the suite solved event.
 
 ## Jack map
 
