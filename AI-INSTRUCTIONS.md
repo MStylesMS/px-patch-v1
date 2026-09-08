@@ -4,7 +4,7 @@ TFD control-room patch / ventilation firmware for Paradox escape rooms.
 
 ## Status
 
-Firmware **0.12** on Patch32Prop (`.52`). I/O scan + fans; GM `solve` publishes
+Firmware **0.13** on Patch32Prop (`.52`). I/O scan + fans; GM `solve` publishes
 suite `{event:"solved"}` (does **not** invent A/B chain matching on the ESP).
 Config may store up to 8 named target-chain strings for the Live overlay.
 
@@ -60,6 +60,8 @@ drawn. Archive firmware has no row/column table.
 - Do not edit `props/esp32/archive/patch32` or `tfd-old` runtime.
 - Version bump default `+0.01`.
 - Path-relative assets + `lib_http_proxy` when serving embedded UI.
+- Hardware must not block boot: `hwOk` / `hwFault` + red `.hw-banner`.
+  Shared contract: [../px-components/docs/hw-fault.md](../px-components/docs/hw-fault.md).
 
 ## Suite standards
 

@@ -17,6 +17,8 @@ typedef struct {
 } patch_battery_snapshot_t;
 
 esp_err_t patch_engine_init(void);
+/* Start the I/O loop after Wi-Fi/SoftAP so SPI work cannot block the console. */
+esp_err_t patch_engine_start(void);
 
 #define PATCH_STATE_JSON_MAX 4096
 

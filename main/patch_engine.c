@@ -445,6 +445,20 @@ static void scan_once_unlocked(void)
     int settle = s_ctx.cfg.settle_ms;
 
     memset(adj, 0, sizeof(adj));
+    if (!mcp23s17_ok()) {
+        static int64_t last_probe_ms;
+        int64_t now = now_ms();
+        if (now - last_probe_ms >= 500) {
+            last_probe_ms = now;
+            if (mcp23s17_probe()) {
+                s_ctx.spi_ok = true;
+                ESP_LOGI(TAG, "MCP23S17 appeared — panel I/O enabled");
+            }
+        }
+        s_ctx.spi_ok = mcp23s17_ok();
+        copy_bounded(s_ctx.pending_chains, sizeof(s_ctx.pending_chains), "");
+        return;
+    }
     if (settle < 1) {
         settle = 1;
     }
@@ -519,6 +533,13 @@ static void apply_debounced_unlocked(void)
 static void patch_loop_task(void *arg)
 {
     (void)arg;
+    /* First SPI touch happens here, after web_ui_start(): a wedged bus can
+     * no longer keep SoftAP/STA from starting. */
+    (void)mcp23s17_init();
+    if (patch_lock()) {
+        s_ctx.spi_ok = mcp23s17_ok();
+        patch_unlock();
+    }
     while (1) {
         int delay_ms;
         if (patch_lock()) {
@@ -820,19 +841,18 @@ esp_err_t patch_engine_init(void)
     };
     gpio_config(&tile_cfg);
 
-    if (mcp23s17_init() != ESP_OK) {
-        ESP_LOGE(TAG, "MCP23S17 init failed — scan will report empty chains");
-        s_ctx.spi_ok = false;
-    } else {
-        s_ctx.spi_ok = true;
-    }
-
+    s_ctx.spi_ok = false;
     s_ctx.all_tiles_present = read_tiles_present();
 
+    ESP_LOGI(TAG, "Patch engine initialized (I/O starts after Wi-Fi)");
+    return ESP_OK;
+}
+
+esp_err_t patch_engine_start(void)
+{
     if (xTaskCreate(patch_loop_task, "patch_loop", 4096, NULL, 5, NULL) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    ESP_LOGI(TAG, "Patch engine initialized");
     return ESP_OK;
 }
 
@@ -845,6 +865,8 @@ void patch_engine_get_state_json(char *out, size_t out_size)
     char esc_mqtt_in[192];
     char esc_mqtt_out[192];
     char esc_ssid[72];
+    char esc_fault[160];
+    char hw_fault[128];
     int i;
     int pos = 0;
     bool tile_raw_high;
@@ -863,6 +885,8 @@ void patch_engine_get_state_json(char *out, size_t out_size)
     lib_json_escape_string(s_ctx.mqtt_last_in, esc_mqtt_in, sizeof(esc_mqtt_in));
     lib_json_escape_string(s_ctx.mqtt_last_out, esc_mqtt_out, sizeof(esc_mqtt_out));
     lib_json_escape_string(s_ctx.wifi_ssid, esc_ssid, sizeof(esc_ssid));
+    mcp23s17_get_fault(hw_fault, sizeof(hw_fault));
+    lib_json_escape_string(hw_fault, esc_fault, sizeof(esc_fault));
     tile_raw_high = gpio_get_level(TILE_GPIO) != 0;
 
     pos = state_json_append(out,
@@ -928,7 +952,9 @@ void patch_engine_get_state_json(char *out, size_t out_size)
                             "},"
                             "\"wifiConnected\":%s,"
                             "\"wifiSsid\":\"%s\","
-                            "\"wifiRssi\":%d"
+                            "\"wifiRssi\":%d,"
+                            "\"hwOk\":%s,"
+                            "\"hwFault\":\"%s\""
                             "}",
                             esc_mqtt_in,
                             (long long)s_ctx.mqtt_last_in_ts_ms,
@@ -936,7 +962,9 @@ void patch_engine_get_state_json(char *out, size_t out_size)
                             (long long)s_ctx.mqtt_last_out_ts_ms,
                             s_ctx.wifi_connected ? "true" : "false",
                             esc_ssid,
-                            s_ctx.wifi_rssi);
+                            s_ctx.wifi_rssi,
+                            s_ctx.spi_ok ? "true" : "false",
+                            esc_fault);
     (void)pos;
     patch_unlock();
 }
