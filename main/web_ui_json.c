@@ -1,4 +1,4 @@
-#include "web_ui_json.h"
+   #include "web_ui_json.h"
 #include "lib_json_helper.h"
 #include "svc_nvs_config.h"
 
@@ -16,7 +16,7 @@ static esp_err_t json_parse_object(const char *json, cJSON **out)
     cJSON *root;
 
     if (!json || !out) {
-        return ESP_ERR_INVALID_ARG;
+        return ESP_ERR_INVALID_ARG;  
     }
 
     root = lib_json_parse(json);
